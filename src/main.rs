@@ -136,25 +136,24 @@ pub fn DynamicLabelPropagation(trainFeatures:&Vec<Vec<f64>>,trainLabels:&Vec<f64
 {
     let m = trainFeatures[0].len();
     let mut trainFeatureSamples:Vec<Vec<f64>> = vec![vec![0.;m];num_samples];
-    let mut trainLabelSamples:Vec<f64> = vec![0.;num_samples];
-    let mut _y:Vec<Vec<f64>> = vec![vec![0.;10];num_samples];
+    let mut y:Vec<Vec<f64>> = vec![vec![0.;10];num_samples];
     let mut rng = rand::thread_rng();
     for i in 0..num_samples
     {
         let randnum = rng.gen_range(0..trainFeatures.len());
-        trainLabelSamples[i] = trainLabels[randnum];
+        y[i][trainLabels[randnum] as usize] = 1.;
         for j in 0..m
         {
             trainFeatureSamples[i][j] = trainFeatures[randnum][j];
         }
     }
 
-    let g = kNN_graph(&trainFeatureSamples,2);
+    let _g = kNN_graph(&trainFeatureSamples,2);
     let w = affinityMatrix(&trainFeatureSamples,sigma);
 
     let _p_0 = probtransMatrix(&w);
 
-    return g
+    return y
 }
 
 
@@ -163,7 +162,7 @@ fn main()
 
     //load in training features and labels
     let file1 = File::open("TrainData/uspstrainlabels.txt").unwrap();
-    let file2 = File::open("TrainData/cuspstrainfeatures.txt").unwrap();
+    let file2 = File::open("TrainData/uspstrainfeatures.txt").unwrap();
     let trainLabels = USPSlabels(&file1).unwrap();
     let trainFeatures = USPSfeatures(&file2).unwrap();
     let test = DynamicLabelPropagation(&trainFeatures,&trainLabels,5,0.6);
@@ -171,6 +170,8 @@ fn main()
     {
         println!("{:?}", test[i]);
     }
+
+
 
 
 
