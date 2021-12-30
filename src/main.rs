@@ -148,12 +148,12 @@ pub fn DynamicLabelPropagation(trainFeatures:&Vec<Vec<f64>>,trainLabels:&Vec<f64
         }
     }
 
-    let _g = kNN_graph(&trainFeatureSamples,2);
+    let g = kNN_graph(&trainFeatureSamples,2);
     let w = affinityMatrix(&trainFeatureSamples,sigma);
 
     let _p_0 = probtransMatrix(&w);
 
-    return y
+    return g
 }
 
 
