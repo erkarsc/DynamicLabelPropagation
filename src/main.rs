@@ -132,7 +132,7 @@ pub fn kNN_graph(mat:&Vec<Vec<f64>>,_k:usize) -> Vec<Vec<f64>>
 
 //dynamic label propagation needs training data and test data to work on
 //sigma is a tuning parameter for learning
-pub fn DynamicLabelPropagation(trainFeatures:&Vec<Vec<f64>>,trainLabels:&Vec<f64>,num_samples:usize, _sigma:f64)->Vec<Vec<f64>>
+pub fn DynamicLabelPropagation(trainFeatures:&Vec<Vec<f64>>,trainLabels:&Vec<f64>,num_samples:usize, sigma:f64)->Vec<Vec<f64>>
 {
     let m = trainFeatures[0].len();
     let mut trainFeatureSamples:Vec<Vec<f64>> = vec![vec![0.;m];num_samples];
@@ -150,9 +150,9 @@ pub fn DynamicLabelPropagation(trainFeatures:&Vec<Vec<f64>>,trainLabels:&Vec<f64
     }
 
     let g = kNN_graph(&trainFeatureSamples,2);
-    //let w = affinityMatrix(&trainFeatureSamples,sigma);
+    let w = affinityMatrix(&trainFeatureSamples,sigma);
 
-//    let _p_0 = probtransMatrix(&w);
+    let _p_0 = probtransMatrix(&w);
 
     return g
 }
@@ -162,8 +162,8 @@ fn main()
 {
 
     //load in training features and labels
-    let file1 = File::open("uspstrainlabels").unwrap();
-    let file2 = File::open("uspstrainfeatures").unwrap();
+    let file1 = File::open("TrainData/uspstrainlabels.txt").unwrap();
+    let file2 = File::open("TrainData/cuspstrainfeatures.txt").unwrap();
     let trainLabels = USPSlabels(&file1).unwrap();
     let trainFeatures = USPSfeatures(&file2).unwrap();
     let test = DynamicLabelPropagation(&trainFeatures,&trainLabels,5,0.6);
