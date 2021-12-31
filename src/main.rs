@@ -4,6 +4,8 @@ use rand::Rng;
 use std::fs::File;
 use std::io;
 use std::io::{BufRead,BufReader, Error, ErrorKind};
+use smartcore::algorithm::neighbour::cover_tree::CoverTree;
+use smartcore::math::distance::Distance;
 
 /*
 pub fn read1(path: &str,delimiter:char) -> Result<Vec<Vec<f64>>, Error>
@@ -66,6 +68,19 @@ pub fn USPSfeatures(file:&File) -> Result<Vec<Vec<f64>>,Error>
 pub fn norm(x:&Vec<f64>)->f64
 {
     return x.iter().fold(0.,|sum,x|sum + x*x).sqrt();
+}
+
+struct DistanceStruct
+{
+    graph: Vec<Vec<f64>>,
+}
+
+impl Distance<usize, usize> for DistanceStruct
+{
+    fn distance(&self, a: &usize, b: &usize) -> f64
+    {
+        self.graph[a][b]
+    }
 }
 
 pub fn affinityMatrix(x:&Vec<Vec<f64>>, sigma:f64)->Vec<Vec<f64>>
@@ -150,12 +165,23 @@ pub fn DynamicLabelPropagation(trainFeatures:&Vec<Vec<f64>>,trainLabels:&Vec<f64
 
     let g = kNN_graph(&trainFeatureSamples,2);
     let w = affinityMatrix(&trainFeatureSamples,sigma);
+    let ww = vec![vec![0.; num_samples]; num_samples];
+    
+    let mut tree = CoverTree::new(data, DistanceStruct{graph: g}).unwrap();
+    let mut knn: Vec<usize>;
+    for i in 0..num_samples
+    {
+        knn = tree.find(&i, k).unwrap();
+        for j in knn
+        {
+            ww[i][j] = w[i][j];
+        }
+    }
 
     let _p_0 = probtransMatrix(&w);
 
     return g
 }
-
 
 fn main()
 {
@@ -170,11 +196,4 @@ fn main()
     {
         println!("{:?}", test[i]);
     }
-
-
-
-
-
-
-
 }
