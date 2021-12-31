@@ -70,12 +70,13 @@ pub fn norm(x:&Vec<f64>)->f64
     return x.iter().fold(0.,|sum,x|sum + x*x).sqrt();
 }
 
+#[derive(Clone)]
 struct DistanceStruct
 {
     graph: Vec<Vec<f64>>,
 }
 
-impl Distance<usize, usize> for DistanceStruct
+impl Distance<usize, f64> for DistanceStruct
 {
     fn distance(&self, a: &usize, b: &usize) -> f64
     {
@@ -167,11 +168,11 @@ pub fn DynamicLabelPropagation(trainFeatures:&Vec<Vec<f64>>,trainLabels:&Vec<f64
     let w = affinityMatrix(&trainFeatureSamples,sigma);
     let ww = vec![vec![0.; num_samples]; num_samples];
     
-    let mut tree = CoverTree::new(data, DistanceStruct{graph: g}).unwrap();
+    let mut tree = CoverTree::new(trainFeatureSamples, DistanceStruct{graph: g}).unwrap();
     let mut knn: Vec<usize>;
     for i in 0..num_samples
     {
-        knn = tree.find(&i, k).unwrap();
+        knn = tree.find(&i, 3/* <- k */).unwrap();
         for j in knn
         {
             ww[i][j] = w[i][j];
