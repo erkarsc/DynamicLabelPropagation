@@ -120,33 +120,6 @@ pub fn affinityMatrix(x:&FloatMat, sigma:f64)->FloatMat
     return w
 }
 
-pub fn probTransMatrix(x:&FloatMat)-> FloatMat
-{
-    let n = x.len();
-    let m = x[0].len();
-    let mut p:FloatMat = vec![vec![0.;m];n];
-    for i in 0..n
-    {
-        for j in 0..m
-        {
-            p[i][j] = x[i][j];// initialize matrix identical to x
-        }
-    }
-    for i in 0..n
-    {
-        let rowSum = x[i].iter().sum::<f64>();
-        for j in 0..m
-        {
-            p[i][j] /= rowSum; //sum row and divide each element in the row by that value
-        }
-    }
-    return p
-}
-
-
-
-
-
 pub fn dist_graph(mat:&FloatMat) -> FloatMat
 {
     let n = mat.len();
@@ -162,6 +135,7 @@ pub fn dist_graph(mat:&FloatMat) -> FloatMat
 
     return g
 }
+
 pub fn calcSimMatrix(sampleMat:&FloatMat, params:&Params) -> (FloatMat,FloatMat)
 {
     let num_samples = sampleMat.len();
@@ -185,13 +159,54 @@ pub fn calcSimMatrix(sampleMat:&FloatMat, params:&Params) -> (FloatMat,FloatMat)
     return (ww, affMat)
 }
 
+pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
+{
+    let mut mat = vec![vec![0.;num_samples];num_samples];
+    for i in 0..num_samples
+    {
+        mat[i][i] = params.lambda;
+    }
+    return mat
+}
+
+pub fn probTransMatrix(sampleMat:&FloatMat,params:&Params)-> (FloatMat,FloatMat)
+{
+    let (w,ww) = calcSimMatrix(&sampleMat,&params);
+    let n = w.len();
+    let m = w[0].len();
+    let mut p_0:FloatMat = vec![vec![0.;m];n];
+    let mut ps:FloatMat = vec![vec![0.;m];n];
+
+    for i in 0..n
+    {
+        for j in 0..m
+        {
+            p_0[i][j] = w[i][j];// initialize matrix identical to x
+            ps[i][j] = ww[i][j];
+        }
+    }
+    for i in 0..n
+    {
+        let rowSum1 = w[i].iter().sum::<f64>();
+        let rowSum2 = ww[i].iter().sum::<f64>();
+
+        for j in 0..m
+        {
+            p_0[i][j] /= rowSum1; //sum row and divide each element in the row by that value
+            ps[i][j] /= rowSum2;
+        }
+    }
+    return (p_0,ps)
+}
+
 //dynamic label propagation needs training data and test data to work on
 //sigma is a tuning parameter for learning
-pub fn dynamicLabelPropagation(trainFeatures:&FloatMat,trainLabels:&Vec<f64>,num_samples:usize, params:&Params)->FloatMat
+pub fn dynamicLabelPropagation(trainFeatures:&FloatMat,trainLabels:&Vec<f64>,testFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize, params:&Params)->FloatMat
 {
     let m = trainFeatures[0].len();
+    let n = testFeatures.len();
     let mut trainFeatureSamples:FloatMat = vec![vec![0.;m];num_samples];
-    let mut y:FloatMat = vec![vec![0.;10];num_samples];
+    let mut y:FloatMat = vec![vec![0.;10];num_samples+n];
     let mut rng = rand::thread_rng();
     for i in 0..num_samples
     {
@@ -205,11 +220,12 @@ pub fn dynamicLabelPropagation(trainFeatures:&FloatMat,trainLabels:&Vec<f64>,num
 
 
 
-    let (ww, affMat) = calcSimMatrix(&trainFeatureSamples, params);
+    let (_p_0,ps) = probTransMatrix(&trainFeatureSamples,params);
 
-    let _p_0 = probTransMatrix(&affMat);
 
-    return ww
+    let lambdaMat = lambMat(num_samples, params);
+
+    return ps
 }
 
 
@@ -219,9 +235,15 @@ fn main()
     //load in training features and labels
     let file1 = File::open("TrainData/uspstrainlabels.txt").unwrap();
     let file2 = File::open("TrainData/uspstrainfeatures.txt").unwrap();
+    let file3 = File::open("TestData/uspstestfeatures.txt").unwrap();
+    let file4 = File::open("TestData/uspstestlabels.txt").unwrap();
     let trainLabels = USPSlabels(&file1).unwrap();
     let trainFeatures = USPSfeatures(&file2).unwrap();
-    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,5,&Default::default());
+    let testLabels = USPSlabels(&file4).unwrap();
+    let testFeatures = USPSfeatures(&file3).unwrap();
+
+
+    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,5,&Default::default());
     for i in 0..5
     {
         println!("{:?}", test[i]);
