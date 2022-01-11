@@ -131,7 +131,7 @@ struct DistanceStruct<'a>
 
 impl<'a> Distance<usize, f64> for DistanceStruct<'a>
 {
-    fn distance(&self, a: &usize, b: &usize) -> f64
+    fn distance(&self, a:& usize, b:& usize) -> f64
     {
         self.graph[*a][*b]
     }
@@ -179,8 +179,7 @@ pub fn probTransMatrix(x:&FloatMat)-> FloatMat
     return p
 }
 
-//computes weighted graph of k-nearest neighbors for points in matrix
-pub fn kNN_graph(mat:&FloatMat,_k:usize) -> FloatMat
+pub fn dist_graph(mat:&FloatMat) -> FloatMat
 {
     let n = mat.len();
     let mut g:FloatMat = vec![vec![0.;n];n];
@@ -200,7 +199,7 @@ pub fn calcSimMatrices(sampleMat: &FloatMat, params: &Params) -> (FloatMat, Floa
 {
     let num_samples = sampleMat.len();
     
-    let g = kNN_graph(&sampleMat,2);
+    let g = dist_graph(&sampleMat);
     let w = affinityMatrix(&sampleMat,params);
     let mut ww = vec![vec![0.; num_samples]; num_samples];
     let ind: Vec<usize> = (0..num_samples).collect();
@@ -243,6 +242,7 @@ pub fn dynamicLabelPropagation(trainFeatures:&FloatMat,trainLabels:&Vec<f64>,num
 
     return ww
 }
+
 
 fn main()
 {
