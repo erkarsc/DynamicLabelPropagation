@@ -1,28 +1,65 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
+
 use rand::Rng;
+
 use std::fs::File;
 use std::io;
+use std::default::Default;
 use std::io::{BufRead,BufReader, Error, ErrorKind};
+
 use smartcore::algorithm::neighbour::cover_tree::CoverTree;
 use smartcore::math::distance::Distance;
-use std::default::Default;
+
 type FloatMat = Vec<Vec<f64>>;
 
+pub fn printMat(mat: &FloatMat)
+{
+    print!("[");
+
+    for i in 0..(mat.len())
+    {
+        if i != 0
+        {
+            print!(" ");
+        }
+
+        print!("[");
+        for j in 0..(mat[i].len())
+        {
+            print!("{:.3}", mat[i][j]);
+            if j != (mat[i].len()-1)
+            {
+                print!(", ");
+            }
+        }
+        print!("]");
+        if i != (mat.len()-1)
+        {
+            print!("\n");
+        }
+    }
+
+    println!("]");
+}
+
+#[derive(Debug)]
 pub struct Params
 {
-    sigma: f64,
     k: usize,
-    lambda: f64,
+    sigma: f64,
     alpha: f64,
+    lambda: f64,
 }
+
 impl Default for Params
 {
-    fn default( ) -> Self
+    fn default() -> Self
     {
-        return Params{sigma: 0.6, k: 3, lambda: 0.10, alpha: 0.05}
+        return Params{k:3, sigma:0.6, alpha:0.05, lambda:0.1};
     }
 }
+
 /*
 pub fn read1(path: &str,delimiter:char) -> Result<FloatMat, Error>
 {
@@ -92,8 +129,7 @@ struct DistanceStruct<'a>
     graph: &'a FloatMat,
 }
 
-
-impl Distance<usize, f64> for DistanceStruct<'_>
+impl<'a> Distance<usize, f64> for DistanceStruct<'a>
 {
     fn distance(&self, a:& usize, b:& usize) -> f64
     {
@@ -101,7 +137,7 @@ impl Distance<usize, f64> for DistanceStruct<'_>
     }
 }
 
-pub fn affinityMatrix(x:&FloatMat, sigma:f64)->FloatMat
+pub fn affinityMatrix(x:&FloatMat, params: &Params)->FloatMat
 {
     let n = x.len();
     let mut w = vec![vec![0.;n]; n]; // allocate space for affinity matrix
@@ -112,13 +148,14 @@ pub fn affinityMatrix(x:&FloatMat, sigma:f64)->FloatMat
         for j in 0..n
         {
             dif = x[i].iter().zip(x[j].iter()).map(|(&x1,&x2)|x1-x2).collect();// compute difference of two rows
-            val = norm(&dif).powf(2.)/sigma;
+            val = norm(&dif).powf(2.)/params.sigma;
             //find norm of vector
             w[i][j] = (-val).exp();
         }
     }
     return w
 }
+
 
 pub fn dist_graph(mat:&FloatMat) -> FloatMat
 {
@@ -135,13 +172,12 @@ pub fn dist_graph(mat:&FloatMat) -> FloatMat
 
     return g
 }
-
 pub fn calcSimMatrix(sampleMat:&FloatMat, params:&Params) -> (FloatMat,FloatMat)
 {
     let num_samples = sampleMat.len();
 
     let mut ww = vec![vec![0.; num_samples]; num_samples];
-    let affMat = affinityMatrix(&sampleMat,params.sigma);
+    let affMat = affinityMatrix(&sampleMat,params);
     let g = dist_graph(&sampleMat);
 
     let ind:Vec<usize> =  (0..num_samples).collect();
@@ -168,7 +204,6 @@ pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
     }
     return mat
 }
-
 pub fn probTransMatrix(sampleMat:&FloatMat,params:&Params)-> (FloatMat,FloatMat)
 {
     let (w,ww) = calcSimMatrix(&sampleMat,&params);
@@ -199,8 +234,9 @@ pub fn probTransMatrix(sampleMat:&FloatMat,params:&Params)-> (FloatMat,FloatMat)
     return (p_0,ps)
 }
 
+
 //dynamic label propagation needs training data and test data to work on
-//sigma is a tuning parameter for learning
+//sigma is a tuning parameter
 pub fn dynamicLabelPropagation(trainFeatures:&FloatMat,trainLabels:&Vec<f64>,testFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize, params:&Params)->FloatMat
 {
     let m = trainFeatures[0].len();
@@ -217,6 +253,8 @@ pub fn dynamicLabelPropagation(trainFeatures:&FloatMat,trainLabels:&Vec<f64>,tes
             trainFeatureSamples[i][j] = trainFeatures[randnum][j];
         }
     }
+
+
 
 
 
