@@ -43,6 +43,27 @@ pub fn printMat(mat: &FloatMat)
     println!("]");
 }
 
+pub fn matMul(mat1:FloatMat, mat2:FloatMat) -> FloatMat
+{
+    let r1 = mat1.len();
+    let r2 = mat2.len();
+    let c1 = mat1[0].len();
+    let c2 = mat2[0].len();
+    let mut prod = vec![vec![0.;c2];r1];
+    for i in 0..r1
+    {
+        for j in 0..c2
+        {
+
+            for k in 0..r2
+            {
+              prod[i][j] += mat1[i][k] * mat2[k][j];
+            }
+        }
+    }
+    return prod
+}
+
 #[derive(Debug)]
 pub struct Params
 {
@@ -137,6 +158,7 @@ impl<'a> Distance<usize, f64> for DistanceStruct<'a>
     }
 }
 
+//creates affinity matrix of a given graph
 pub fn affinityMatrix(x:&FloatMat, params: &Params)->FloatMat
 {
     let n = x.len();
@@ -151,8 +173,10 @@ pub fn affinityMatrix(x:&FloatMat, params: &Params)->FloatMat
             val = norm(&dif).powf(2.)/params.sigma;
             //find norm of vector
             w[i][j] = (-val).exp();
+
         }
     }
+
     return w
 }
 
@@ -172,6 +196,8 @@ pub fn dist_graph(mat:&FloatMat) -> FloatMat
 
     return g
 }
+
+// calculates the similarity matrices that will be used to obtain the probabilistic transition matrices
 pub fn calcSimMatrix(sampleMat:&FloatMat, params:&Params) -> (FloatMat,FloatMat)
 {
     let num_samples = sampleMat.len();
@@ -195,15 +221,8 @@ pub fn calcSimMatrix(sampleMat:&FloatMat, params:&Params) -> (FloatMat,FloatMat)
     return (ww, affMat)
 }
 
-pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
-{
-    let mut mat = vec![vec![0.;num_samples];num_samples];
-    for i in 0..num_samples
-    {
-        mat[i][i] = params.lambda;
-    }
-    return mat
-}
+
+//creates probabilistic transition matrices for W and 𝓦
 pub fn probTransMatrix(sampleMat:&FloatMat,params:&Params)-> (FloatMat,FloatMat)
 {
     let (w,ww) = calcSimMatrix(&sampleMat,&params);
@@ -233,38 +252,51 @@ pub fn probTransMatrix(sampleMat:&FloatMat,params:&Params)-> (FloatMat,FloatMat)
     }
     return (p_0,ps)
 }
-
-
-//dynamic label propagation needs training data and test data to work on
-//sigma is a tuning parameter
-pub fn dynamicLabelPropagation(trainFeatures:&FloatMat,trainLabels:&Vec<f64>,testFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize, params:&Params)->FloatMat
+//lambda matrix used in final iteration steps of algorithm
+//although lambda is a parameter, the algorithm is not very sensitive to changes in it
+pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
 {
-    let m = trainFeatures[0].len();
-    let n = testFeatures.len();
-    let mut trainFeatureSamples:FloatMat = vec![vec![0.;m];num_samples];
+    let mut mat = vec![vec![0.;num_samples];num_samples];
+    for i in 0..num_samples
+    {
+        mat[i][i] = params.lambda;
+    }
+    return mat
+}
+
+pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&FloatMat,num_samples:usize) -> (FloatMat,FloatMat)
+{
+    let m = labeledFeatures[0].len();
+    let n = unlabeledFeatures.len();
+    let mut labeledFeatureSamples:FloatMat = vec![vec![0.;m];num_samples];
     let mut y:FloatMat = vec![vec![0.;10];num_samples+n];
     let mut rng = rand::thread_rng();
     for i in 0..num_samples
     {
-        let randnum = rng.gen_range(0..trainFeatures.len());
-        y[i][trainLabels[randnum] as usize] = 1.;
+        let randnum = rng.gen_range(0..labeledFeatures.len());
+        y[i][labels[randnum] as usize] = 1.;
         for j in 0..m
         {
-            trainFeatureSamples[i][j] = trainFeatures[randnum][j];
+            labeledFeatureSamples[i][j] = labeledFeatures[randnum][j];
         }
     }
+    return (y,labeledFeatureSamples)
+}
 
+//dynamic label propagation needs training data and test data to work on
+//sigma is a tuning parameter
+pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabeledFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize, params:&Params)->FloatMat
+{
 
+    let(y,labeledFeatureSamples) = labelMat(&labeledFeatures, &labels, &unlabeledFeatures, num_samples);
 
-
-
-    let (_p_0,ps) = probTransMatrix(&trainFeatureSamples,params);
-
+    let (p_0,_ps) = probTransMatrix(&labeledFeatureSamples,params);
 
     let lambdaMat = lambMat(num_samples, params);
 
-    return ps
+    return p_0
 }
+
 
 
 fn main()
@@ -281,9 +313,7 @@ fn main()
     let testFeatures = USPSfeatures(&file3).unwrap();
 
 
-    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,5,&Default::default());
-    for i in 0..5
-    {
-        println!("{:?}", test[i]);
-    }
+    let _test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,10,&Default::default());
+
+    //printMat(&test);
 }
