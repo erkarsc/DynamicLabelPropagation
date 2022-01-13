@@ -323,7 +323,7 @@ pub fn probTransMatrix(sampleMat:&FloatMat,params:&Params)-> (FloatMat,FloatMat)
 //although lambda is a parameter, the algorithm is not very sensitive to changes in it
 pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
 {
-    let mut mat = vec![vec![0.;num_samples];num_samples];
+    let mut mat = vec![vec![0.;num_samples+50];num_samples+50];//CHANGE THIS
     for i in 0..num_samples
     {
         mat[i][i] = params.lambda;
@@ -331,17 +331,17 @@ pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
     return mat
 }
 
-pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize) -> (FloatMat,FloatMat,Vec<f64>)
+pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize) -> (FloatMat,FloatMat,Vec<usize>)
 {
     let m = labeledFeatures[0].len();
-    let n = 200;
+    let n = 50; //CHANGE THIS
     let mut featureSamples = vec![vec![0.;m];num_samples+n];
     let mut y:FloatMat = vec![vec![0.;10];num_samples+n];
     let mut rng = rand::thread_rng();
-    let mut testLabelSamples = vec![];
+    let mut testLabelSamples:Vec<usize> = vec![];
     for i in 0..num_samples + n
     {
-        if i <= num_samples
+        if i < num_samples
         {
             let randnum = rng.gen_range(0..labeledFeatures.len());
             y[i][labels[randnum] as usize] = 1.;
@@ -352,7 +352,7 @@ pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&
         }
         else
         {
-            testLabelSamples.push(testLabels[i-num_samples]);
+            testLabelSamples.push(testLabels[i-num_samples] as usize);
             for j in 0..m
             {
                 featureSamples[i][j] = unlabeledFeatures[i-num_samples][j];
@@ -366,7 +366,7 @@ pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&
 
 //dynamic label propagation needs training data and test data to work on
 //sigma is a tuning parameter
-pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabeledFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize, params:&Params)->(FloatMat,Vec<usize>,Vec<f64>)
+pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabeledFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize, params:&Params)->(FloatMat,Vec<usize>,Vec<usize>)
 {
 
     let(y,featureSamples,testLabelSamples) = labelMat(&labeledFeatures, &labels, &unlabeledFeatures,&testLabels, num_samples);
@@ -380,26 +380,20 @@ pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabe
     for _i in 0..params.max_iter
     {
         yNew = matMult(&p_0,&y);
-        for i in 0..yNew.len()/2
+        for i in 0..num_samples
         {
             for j in 0..yNew[0].len()
             {
                 yNew[i][j] = y[i][j];
             }
         }
-        /* debugging lines
-        let x = scalarMult(params.alpha,matMult(&y,&y.T()));
-        println!("{},{}",x.len() ,x[0].len());
-        println!("{},{}", ps.len(),ps[0].len());
-        p_0 = matMult(&ps,&matSum(&ps,&scalarMult(params.alpha,matMult(&y,&y.T()))));
-        */
-        p_0 = matSum(&matMult(&matMult(&ps,&matSum(&p_0,&scalarMult(params.alpha,matMult(&y,&y.T())))),&ps.T()),&lambdaMat);// this line is causing the problem
+        p_0 = matSum(&matMult(&matMult(&ps,&matSum(&p_0,&scalarMult(params.alpha,matMult(&y,&y.T())))),&ps.T()),&lambdaMat);
     }
 
-    let mut predictedLabels = vec![0;num_samples];
-    for i in 0..num_samples
+    let mut predictedLabels = vec![];
+    for i in num_samples..yNew.len()
     {
-        predictedLabels[i] = yNew[i].argMax();
+        predictedLabels.push(yNew[i].argMax());
     }
 
     return (yNew,predictedLabels,testLabelSamples)
@@ -418,12 +412,9 @@ fn main()
     let testLabels = USPSlabels(&file4).unwrap();
     let testFeatures = USPSfeatures(&file3).unwrap();
 
-    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,50,&Default::default());
+    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,100,&Default::default());
 
-for i in 200..205
-{
-    println!("{:?}",test.0[i]);
-}
-
+println!("{:?}", test.1);
+println!("{:?}", test.2);
 
 }
