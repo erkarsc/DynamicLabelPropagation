@@ -13,6 +13,53 @@ use smartcore::math::distance::Distance;
 
 type FloatMat = Vec<Vec<f64>>;
 
+pub trait Transpose
+ {
+    fn T(&self) -> FloatMat;
+}
+impl Transpose for FloatMat
+{
+    fn T(self:&FloatMat) -> FloatMat
+    {
+        let r = self.len();
+        let c = self[0].len();
+        let mut transpose = vec![vec![0.;r];c];
+        for i in 0..c
+        {
+            for j in 0..r
+            {
+                transpose[i][j] = self[j][i];
+            }
+        }
+        return transpose
+
+
+    }
+
+}
+
+pub trait ArgMax
+{
+    fn argMax(&self)-> usize;
+}
+impl ArgMax for Vec<f64>
+{
+    fn argMax(self:&Vec<f64>) -> usize
+    {
+        let mut max = -100000.;
+        let mut ind:usize = 0;
+        for i in 0..self.len()
+        {
+            if self[i] > max
+            {
+                max = self[i];
+                ind = i;
+            }
+        }
+        return ind;
+    }
+}
+
 pub fn printMat(mat: &FloatMat)
 {
     print!("[");
@@ -43,12 +90,49 @@ pub fn printMat(mat: &FloatMat)
     println!("]");
 }
 
-pub fn matMul(mat1:FloatMat, mat2:FloatMat) -> FloatMat
+#[derive(Debug)]
+//these are parameters used in the algorithm
+//k is for k-nearest neighbors and sigma is for calculating the affinity matrix of the dataset
+//alpha and lambda are paramaters in the final steps of the algorithm, but the results are not sensitive to either of them
+pub struct Params
+{
+    k: usize,
+    sigma: f64,
+    alpha: f64,
+    lambda: f64,
+    max_iter: usize,
+}
+
+impl Default for Params
+{
+    fn default() -> Self
+    {
+        return Params{k:3, sigma:0.6, alpha:0.05, lambda:0.1, max_iter:10};
+    }
+}
+
+pub fn scalarMult(c:f64,mut mat:FloatMat)->FloatMat
+{
+    for i in 0..mat.len()
+    {
+        for j in 0..mat[0].len()
+        {
+            mat[i][j]*=c;
+        }
+    }
+    return mat
+}
+
+pub fn matMult(mat1:&FloatMat, mat2:&FloatMat) -> FloatMat
 {
     let r1 = mat1.len();
     let r2 = mat2.len();
     let c1 = mat1[0].len();
     let c2 = mat2[0].len();
+    if c1 != r2
+    {
+        panic!("Mismatch of matrix dimensions");
+    }
     let mut prod = vec![vec![0.;c2];r1];
     for i in 0..r1
     {
@@ -63,45 +147,27 @@ pub fn matMul(mat1:FloatMat, mat2:FloatMat) -> FloatMat
     }
     return prod
 }
-
-#[derive(Debug)]
-pub struct Params
+pub fn matSum(mat1:&FloatMat,mat2:&FloatMat)-> FloatMat
 {
-    k: usize,
-    sigma: f64,
-    alpha: f64,
-    lambda: f64,
-}
-
-impl Default for Params
-{
-    fn default() -> Self
+    let r1 = mat1.len();
+    let r2 = mat2.len();
+    let c1 = mat1[0].len();
+    let c2 = mat2[0].len();
+    if r1 != r2 || c1 != c2
     {
-        return Params{k:3, sigma:0.6, alpha:0.05, lambda:0.1};
+        panic!("Mismatch of matrix dimensions");
     }
-}
-
-/*
-pub fn read1(path: &str,delimiter:char) -> Result<FloatMat, Error>
-{
-    let file = File::open(path).expect("file not found");
-    let br = BufReader::new(file);
-    let mut v:FloatMat  = vec![];
-    for line in br.lines()
+    let mut sum = vec![vec![0.;c1];r1];
+    for i in 0..r1
     {
-        let mut pair:Vec<f64> = vec![];
-
-        for x in line?.trim().split(delimiter)
+        for j in 0..c1
         {
-            let parsed:f64 = x.parse().unwrap();
-            pair.push(parsed);
+            sum[i][j] = mat1[i][j] + mat2[i][j];
         }
-
-        v.push(pair);
     }
-    Ok(v)
+    return sum
 }
-*/
+
 
 pub fn USPSlabels(file:&File)->Result<Vec<f64>,Error>
 {
@@ -189,8 +255,9 @@ pub fn dist_graph(mat:&FloatMat) -> FloatMat
     {
         for j in 0..n
         {
-            let temp = mat[i].iter().zip(mat[j].iter()).map(|(&mat1,&mat2)|mat1-mat2).collect();// compute norm of difference between rows
-            g[i][j] = norm(&temp);
+            let temp = mat[i].iter().zip(mat[j].iter()).map(|(&mat1,&mat2)|mat1-mat2).collect();
+            g[i][j] = norm(&temp); // compute norm of difference between rows
+
         }
     }
 
@@ -264,40 +331,79 @@ pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
     return mat
 }
 
-pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&FloatMat,num_samples:usize) -> (FloatMat,FloatMat)
+pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize) -> (FloatMat,FloatMat,Vec<f64>)
 {
     let m = labeledFeatures[0].len();
-    let n = unlabeledFeatures.len();
-    let mut labeledFeatureSamples:FloatMat = vec![vec![0.;m];num_samples];
+    let n = 200;
+    let mut featureSamples = vec![vec![0.;m];num_samples+n];
     let mut y:FloatMat = vec![vec![0.;10];num_samples+n];
     let mut rng = rand::thread_rng();
-    for i in 0..num_samples
+    let mut testLabelSamples = vec![];
+    for i in 0..num_samples + n
     {
-        let randnum = rng.gen_range(0..labeledFeatures.len());
-        y[i][labels[randnum] as usize] = 1.;
-        for j in 0..m
+        if i <= num_samples
         {
-            labeledFeatureSamples[i][j] = labeledFeatures[randnum][j];
+            let randnum = rng.gen_range(0..labeledFeatures.len());
+            y[i][labels[randnum] as usize] = 1.;
+            for j in 0..m
+            {
+                featureSamples[i][j] = labeledFeatures[randnum][j];
+            }
         }
+        else
+        {
+            testLabelSamples.push(testLabels[i-num_samples]);
+            for j in 0..m
+            {
+                featureSamples[i][j] = unlabeledFeatures[i-num_samples][j];
+            }
+        }
+
+
     }
-    return (y,labeledFeatureSamples)
+    return (y,featureSamples,testLabelSamples)
 }
 
 //dynamic label propagation needs training data and test data to work on
 //sigma is a tuning parameter
-pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabeledFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize, params:&Params)->FloatMat
+pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabeledFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize, params:&Params)->(FloatMat,Vec<usize>,Vec<f64>)
 {
 
-    let(y,labeledFeatureSamples) = labelMat(&labeledFeatures, &labels, &unlabeledFeatures, num_samples);
+    let(y,featureSamples,testLabelSamples) = labelMat(&labeledFeatures, &labels, &unlabeledFeatures,&testLabels, num_samples);
 
-    let (p_0,_ps) = probTransMatrix(&labeledFeatureSamples,params);
-
+    let (mut p_0,ps) = probTransMatrix(&featureSamples,params);
     let lambdaMat = lambMat(num_samples, params);
 
-    return p_0
+    let mut yNew:FloatMat = vec![];
+    //let mut pNew:FloatMat = vec![];
+
+    for _i in 0..params.max_iter
+    {
+        yNew = matMult(&p_0,&y);
+        for i in 0..yNew.len()/2
+        {
+            for j in 0..yNew[0].len()
+            {
+                yNew[i][j] = y[i][j];
+            }
+        }
+        /* debugging lines
+        let x = scalarMult(params.alpha,matMult(&y,&y.T()));
+        println!("{},{}",x.len() ,x[0].len());
+        println!("{},{}", ps.len(),ps[0].len());
+        p_0 = matMult(&ps,&matSum(&ps,&scalarMult(params.alpha,matMult(&y,&y.T()))));
+        */
+        p_0 = matSum(&matMult(&matMult(&ps,&matSum(&p_0,&scalarMult(params.alpha,matMult(&y,&y.T())))),&ps.T()),&lambdaMat);// this line is causing the problem
+    }
+
+    let mut predictedLabels = vec![0;num_samples];
+    for i in 0..num_samples
+    {
+        predictedLabels[i] = yNew[i].argMax();
+    }
+
+    return (yNew,predictedLabels,testLabelSamples)
 }
-
-
 
 fn main()
 {
@@ -312,8 +418,12 @@ fn main()
     let testLabels = USPSlabels(&file4).unwrap();
     let testFeatures = USPSfeatures(&file3).unwrap();
 
+    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,50,&Default::default());
 
-    let _test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,10,&Default::default());
+for i in 200..205
+{
+    println!("{:?}",test.0[i]);
+}
 
-    //printMat(&test);
+
 }
