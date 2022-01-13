@@ -107,7 +107,7 @@ impl Default for Params
 {
     fn default() -> Self
     {
-        return Params{k:3, sigma:0.6, alpha:0.05, lambda:0.1, max_iter:10};
+        return Params{k:7, sigma:0.2, alpha:0.05, lambda:0.1, max_iter:10};
     }
 }
 
@@ -323,7 +323,8 @@ pub fn probTransMatrix(sampleMat:&FloatMat,params:&Params)-> (FloatMat,FloatMat)
 //although lambda is a parameter, the algorithm is not very sensitive to changes in it
 pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
 {
-    let mut mat = vec![vec![0.;num_samples+50];num_samples+50];//CHANGE THIS
+    let n = 100;// CHANGE THIS CHANGE THIS
+    let mut mat = vec![vec![0.;num_samples+n];num_samples+n];//CHANGE THIS
     for i in 0..num_samples
     {
         mat[i][i] = params.lambda;
@@ -334,7 +335,7 @@ pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
 pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize) -> (FloatMat,FloatMat,Vec<usize>)
 {
     let m = labeledFeatures[0].len();
-    let n = 50; //CHANGE THIS
+    let n = 100; //CHANGE THIS
     let mut featureSamples = vec![vec![0.;m];num_samples+n];
     let mut y:FloatMat = vec![vec![0.;10];num_samples+n];
     let mut rng = rand::thread_rng();
@@ -352,10 +353,11 @@ pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&
         }
         else
         {
-            testLabelSamples.push(testLabels[i-num_samples] as usize);
+            let randnum = rng.gen_range(0..unlabeledFeatures.len());
+            testLabelSamples.push(testLabels[randnum] as usize);
             for j in 0..m
             {
-                featureSamples[i][j] = unlabeledFeatures[i-num_samples][j];
+                featureSamples[i][j] = unlabeledFeatures[randnum][j];
             }
         }
 
@@ -414,7 +416,19 @@ fn main()
 
     let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,100,&Default::default());
 
-println!("{:?}", test.1);
-println!("{:?}", test.2);
 
+    println!("{:?}", test.1);
+    println!("{:?}", test.2);
+    let mut count:f64 = 0.;
+
+    for i in 0..test.1.len()
+    {
+        if test.1[i] as f64 -test.2[i] as f64 == 0.
+        {
+            count += 1.;
+        }
+
+    }
+    let accuracyScore:f64 = count/(test.1.len() as f64);
+    println!("{}", accuracyScore);
 }
