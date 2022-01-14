@@ -2,21 +2,19 @@
 #![allow(unused_imports)]
 
 use rand::Rng;
-
 use std::fs::File;
 use std::io;
 use std::default::Default;
 use std::io::{BufRead,BufReader, Error, ErrorKind};
-
 use smartcore::algorithm::neighbour::cover_tree::CoverTree;
 use smartcore::math::distance::Distance;
-
 type FloatMat = Vec<Vec<f64>>;
 
 pub trait Transpose
- {
+{
     fn T(&self) -> FloatMat;
 }
+
 impl Transpose for FloatMat
 {
     fn T(self:&FloatMat) -> FloatMat
@@ -32,16 +30,14 @@ impl Transpose for FloatMat
             }
         }
         return transpose
-
-
     }
-
 }
 
 pub trait ArgMax
 {
     fn argMax(&self)-> usize;
 }
+
 impl ArgMax for Vec<f64>
 {
     fn argMax(self:&Vec<f64>) -> usize
@@ -63,7 +59,6 @@ impl ArgMax for Vec<f64>
 pub fn printMat(mat: &FloatMat)
 {
     print!("[");
-
     for i in 0..(mat.len())
     {
         if i != 0
@@ -86,7 +81,6 @@ pub fn printMat(mat: &FloatMat)
             print!("\n");
         }
     }
-
     println!("]");
 }
 
@@ -107,7 +101,7 @@ impl Default for Params
 {
     fn default() -> Self
     {
-        return Params{k:7, sigma:0.2, alpha:0.05, lambda:0.1, max_iter:10};
+        return Params{k:10, sigma:0.2, alpha:0.05, lambda:0.1, max_iter:10};
     }
 }
 
@@ -147,6 +141,7 @@ pub fn matMult(mat1:&FloatMat, mat2:&FloatMat) -> FloatMat
     }
     return prod
 }
+
 pub fn matSum(mat1:&FloatMat,mat2:&FloatMat)-> FloatMat
 {
     let r1 = mat1.len();
@@ -171,14 +166,12 @@ pub fn matSum(mat1:&FloatMat,mat2:&FloatMat)-> FloatMat
 
 pub fn USPSlabels(file:&File)->Result<Vec<f64>,Error>
 {
-
     let br = BufReader::new(file);
     let n:usize = 7291;
     let mut labels:Vec<f64> = vec![0.;n];
     let mut count:usize = 0;
     for line in br.lines()
     {
-        //let temp = line.unwrap().chars().nth(0).unwrap().to_digit(10).unwrap() as f64 -1.;
         let temp  = line?.trim().parse().unwrap();
         labels[count] = temp;
         count +=1;
@@ -186,6 +179,7 @@ pub fn USPSlabels(file:&File)->Result<Vec<f64>,Error>
     }
     Ok(labels)
 }
+
 pub fn USPSfeatures(file:&File) -> Result<FloatMat,Error>
 {
     let mut features:FloatMat = vec![];
@@ -200,10 +194,8 @@ pub fn USPSfeatures(file:&File) -> Result<FloatMat,Error>
         }
         features.push(row);
     }
-
     Ok(features)
 }
-
 
 pub fn norm(x:&Vec<f64>)->f64
 {
@@ -242,7 +234,6 @@ pub fn affinityMatrix(x:&FloatMat, params: &Params)->FloatMat
 
         }
     }
-
     return w
 }
 
@@ -257,10 +248,8 @@ pub fn dist_graph(mat:&FloatMat) -> FloatMat
         {
             let temp = mat[i].iter().zip(mat[j].iter()).map(|(&mat1,&mat2)|mat1-mat2).collect();
             g[i][j] = norm(&temp); // compute norm of difference between rows
-
         }
     }
-
     return g
 }
 
@@ -284,10 +273,8 @@ pub fn calcSimMatrix(sampleMat:&FloatMat, params:&Params) -> (FloatMat,FloatMat)
             ww[i][*tup.2] = affMat[i][*tup.2];
         }
     }
-
     return (ww, affMat)
 }
-
 
 //creates probabilistic transition matrices for W and 𝓦
 pub fn probTransMatrix(sampleMat:&FloatMat,params:&Params)-> (FloatMat,FloatMat)
@@ -306,11 +293,11 @@ pub fn probTransMatrix(sampleMat:&FloatMat,params:&Params)-> (FloatMat,FloatMat)
             ps[i][j] = ww[i][j];
         }
     }
+
     for i in 0..n
     {
         let rowSum1 = w[i].iter().sum::<f64>();
         let rowSum2 = ww[i].iter().sum::<f64>();
-
         for j in 0..m
         {
             p_0[i][j] /= rowSum1; //sum row and divide each element in the row by that value
@@ -360,8 +347,6 @@ pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&
                 featureSamples[i][j] = unlabeledFeatures[randnum][j];
             }
         }
-
-
     }
     return (y,featureSamples,testLabelSamples)
 }
@@ -370,14 +355,12 @@ pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&
 //sigma is a tuning parameter
 pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabeledFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize, params:&Params)->(FloatMat,Vec<usize>,Vec<usize>)
 {
-
     let(y,featureSamples,testLabelSamples) = labelMat(&labeledFeatures, &labels, &unlabeledFeatures,&testLabels, num_samples);
 
     let (mut p_0,ps) = probTransMatrix(&featureSamples,params);
     let lambdaMat = lambMat(num_samples, params);
 
     let mut yNew:FloatMat = vec![];
-    //let mut pNew:FloatMat = vec![];
 
     for _i in 0..params.max_iter
     {
@@ -403,7 +386,6 @@ pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabe
 
 fn main()
 {
-
     //load in training features and labels
     let file1 = File::open("TrainData/uspstrainlabels.txt").unwrap();
     let file2 = File::open("TrainData/uspstrainfeatures.txt").unwrap();
@@ -414,7 +396,7 @@ fn main()
     let testLabels = USPSlabels(&file4).unwrap();
     let testFeatures = USPSfeatures(&file3).unwrap();
 
-    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,100,&Default::default());
+    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,150,&Default::default());
 
 
     println!("{:?}", test.1);
