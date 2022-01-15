@@ -101,7 +101,7 @@ impl Default for Params
 {
     fn default() -> Self
     {
-        return Params{k:10, sigma:0.2, alpha:0.05, lambda:0.1, max_iter:10};
+        return Params{k:10, sigma:0.2, alpha:0.05, lambda:0.1, max_iter:15};
     }
 }
 
@@ -310,8 +310,8 @@ pub fn probTransMatrix(sampleMat:&FloatMat,params:&Params)-> (FloatMat,FloatMat)
 //although lambda is a parameter, the algorithm is not very sensitive to changes in it
 pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
 {
-    let n = 100;// CHANGE THIS CHANGE THIS
-    let mut mat = vec![vec![0.;num_samples+n];num_samples+n];//CHANGE THIS
+    let n = 50;// This is the number of unlabeled samples
+    let mut mat = vec![vec![0.;num_samples+n];num_samples+n];
     for i in 0..num_samples
     {
         mat[i][i] = params.lambda;
@@ -322,7 +322,7 @@ pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
 pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize) -> (FloatMat,FloatMat,Vec<usize>)
 {
     let m = labeledFeatures[0].len();
-    let n = 100; //CHANGE THIS
+    let n = 50; // This is the number of unlabeled samples
     let mut featureSamples = vec![vec![0.;m];num_samples+n];
     let mut y:FloatMat = vec![vec![0.;10];num_samples+n];
     let mut rng = rand::thread_rng();
@@ -359,7 +359,6 @@ pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabe
 
     let (mut p_0,ps) = probTransMatrix(&featureSamples,params);
     let lambdaMat = lambMat(num_samples, params);
-
     let mut yNew:FloatMat = vec![];
 
     for _i in 0..params.max_iter
@@ -380,7 +379,6 @@ pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabe
     {
         predictedLabels.push(yNew[i].argMax());
     }
-
     return (yNew,predictedLabels,testLabelSamples)
 }
 
@@ -396,7 +394,7 @@ fn main()
     let testLabels = USPSlabels(&file4).unwrap();
     let testFeatures = USPSfeatures(&file3).unwrap();
 
-    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,150,&Default::default());
+    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,300,&Default::default());
 
 
     println!("{:?}", test.1);
@@ -405,7 +403,7 @@ fn main()
 
     for i in 0..test.1.len()
     {
-        if test.1[i] as f64 -test.2[i] as f64 == 0.
+        if test.1[i] == test.2[i]
         {
             count += 1.;
         }
