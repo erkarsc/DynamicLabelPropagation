@@ -101,7 +101,7 @@ impl Default for Params
 {
     fn default() -> Self
     {
-        return Params{k:10, sigma:0.2, alpha:0.05, lambda:0.1, max_iter:15};
+        return Params{k:12, sigma:0.6, alpha:0.05, lambda:0.1, max_iter:12};
     }
 }
 
@@ -310,7 +310,7 @@ pub fn probTransMatrix(sampleMat:&FloatMat,params:&Params)-> (FloatMat,FloatMat)
 //although lambda is a parameter, the algorithm is not very sensitive to changes in it
 pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
 {
-    let n = 50;// This is the number of unlabeled samples
+    let n = 100;// This is the number of unlabeled samples
     let mut mat = vec![vec![0.;num_samples+n];num_samples+n];
     for i in 0..num_samples
     {
@@ -322,7 +322,7 @@ pub fn lambMat(num_samples:usize, params:&Params) -> FloatMat
 pub fn labelMat(labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&FloatMat,testLabels:&Vec<f64>,num_samples:usize) -> (FloatMat,FloatMat,Vec<usize>)
 {
     let m = labeledFeatures[0].len();
-    let n = 50; // This is the number of unlabeled samples
+    let n = 100; // This is the number of unlabeled samples
     let mut featureSamples = vec![vec![0.;m];num_samples+n];
     let mut y:FloatMat = vec![vec![0.;10];num_samples+n];
     let mut rng = rand::thread_rng();
@@ -371,6 +371,7 @@ pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabe
                 yNew[i][j] = y[i][j];
             }
         }
+        //p_0 = ps.dot(&matSum(&p_0,&scalarMult(params.alpha,y.dot(&y.T())))).dot(&ps.T()).dot(&lambdaMat);
         p_0 = matSum(&matMult(&matMult(&ps,&matSum(&p_0,&scalarMult(params.alpha,matMult(&y,&y.T())))),&ps.T()),&lambdaMat);
     }
 
@@ -394,7 +395,7 @@ fn main()
     let testLabels = USPSlabels(&file4).unwrap();
     let testFeatures = USPSfeatures(&file3).unwrap();
 
-    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,300,&Default::default());
+    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,100,&Default::default());
 
 
     println!("{:?}", test.1);
