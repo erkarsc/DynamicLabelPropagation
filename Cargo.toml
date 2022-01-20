@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 rand = "0.8.4"
 smartcore = "0.2.0"
+ndarray = "0.15.4"
