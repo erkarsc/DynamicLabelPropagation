@@ -57,22 +57,19 @@ impl Default for Params
 {
     fn default() -> Self
     {
-        return Params{k:12, sigma:0.6, alpha:0.05, lambda:0.1, max_iter:12};
+        return Params{k:30, sigma:0.6, alpha:0.05, lambda:0.1, max_iter:50};
     }
 }
 
 pub fn USPSlabels(file:&File)->Result<Vec<f64>,Error>
 {
     let br = BufReader::new(file);
-    let n:usize = 7291;
-    let mut labels:Vec<f64> = vec![0.;n];
-    let mut count:usize = 0;
+    //let n:usize = 7291; //fix this
+    let mut labels = vec![];
     for line in br.lines()
     {
         let temp  = line?.trim().parse().unwrap();
-        labels[count] = temp;
-        count +=1;
-
+        labels.push(temp);
     }
     Ok(labels)
 }
@@ -298,7 +295,7 @@ fn main()
     let testLabels = USPSlabels(&file4).unwrap();
     let testFeatures = USPSfeatures(&file3).unwrap();
 
-    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,200,&Default::default());
+    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,800,&Default::default());
 
 
     //println!("{:?}", test.1);
