@@ -8,5 +8,7 @@ edition = "2021"
 [dependencies]
 rand = "0.8.4"
 smartcore = "0.2.0"
-ndarray = "0.15.4"
+ndarray = {version = "0.15.4", features = ["blas"] }
+blas-src = { version = "0.8.0", default-features = false, features = ["openblas"] }
+openblas-src = { version = "0.10.4", default-features = false, features = ["cblas","system"] }
 ndarray-stats = "0.5.0"

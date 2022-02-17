@@ -1,46 +1,21 @@
 #![allow(non_snake_case)]
-
+//extern crate blas_src;
 use rand::Rng;
 use std::fs::File;
 use std::default::Default;
 use std::io::{BufRead,BufReader, Error};
+use std::time::Instant;
 use smartcore::algorithm::neighbour::cover_tree::CoverTree;
 use smartcore::math::distance::Distance;
-use ndarray::Array2;
 use ndarray::Data;
 use ndarray::prelude::*;
 use ndarray_stats::QuantileExt;
+
 type FloatMat = Vec<Vec<f64>>;
 
-pub fn printMat(mat: &FloatMat)
-{
-    print!("[");
-    for i in 0..(mat.len())
-    {
-        if i != 0
-        {
-            print!(" ");
-        }
-
-        print!("[");
-        for j in 0..(mat[i].len())
-        {
-            print!("{:.3}", mat[i][j]);
-            if j != (mat[i].len()-1)
-            {
-                print!(", ");
-            }
-        }
-        print!("]");
-        if i != (mat.len()-1)
-        {
-            print!("\n");
-        }
-    }
-    println!("]");
-}
 
 #[derive(Debug)]
+
 //these are parameters used in the algorithm
 //k is for k-nearest neighbors and sigma is for calculating the affinity matrix of the dataset
 //alpha and lambda are paramaters in the final steps of the algorithm, but the results are not sensitive to either of them
@@ -57,7 +32,7 @@ impl Default for Params
 {
     fn default() -> Self
     {
-        return Params{k:30, sigma:0.6, alpha:0.05, lambda:0.1, max_iter:50};
+        return Params{k:12, sigma:0.06, alpha:0.05, lambda:0.1, max_iter:15};
     }
 }
 
@@ -98,6 +73,22 @@ where
     return x.iter().fold(0.,|sum,x|sum + x*x).sqrt();
 }
 
+pub fn accuracyScore(vec1:&Vec<usize>,vec2:&Vec<usize>)
+{
+    let mut count:f64 = 0.;
+
+    for i in 0..vec2.len()
+    {
+        if vec1[i] == vec2[i]
+        {
+            count += 1.;
+        }
+
+    }
+    let accuracyScore:f64 = count/(vec1.len() as f64);
+    println!("{}{}", accuracyScore, "\n");
+}
+
 #[derive(Clone)]
 struct DistanceStruct<'a>
 {
@@ -120,12 +111,13 @@ pub fn dist_graph(mat:&Array2<f64>) -> Array2<f64>
     {
         for j in 0..n
         {
-            let temp = &mat.row(i)-&mat.row(j);//.iter().zip(mat[j].iter()).map(|(&mat1,&mat2)|mat1-mat2).collect();
-            g[[i,j]] = norm(&temp); // compute norm of difference between rows
+            let temp = &mat.row(i)-&mat.row(j);
+            g[[i,j]] = norm(&temp);
         }
     }
     return g
 }
+
 
 //creates affinity matrix of a given graph
 pub fn affinityMatrix(x:&Array2<f64>, params: &Params)->Array2<f64>
@@ -252,11 +244,12 @@ pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabe
     let(y,featureSamples,testLabelSamples) = labelMat(&labeledFeatures, &labels, &unlabeledFeatures,&testLabels, num_samples);
 
     let (mut p_0,ps) = probTransMatrix(&featureSamples,params);
+
     let lambdaMat = lambMat(num_samples, params);
 
     let mut yNew = Array2::<f64>::zeros((p_0.shape()[0],y.shape()[1]));
 
-
+    let psT = ps.t();
 
     for _i in 0..params.max_iter
     {
@@ -269,7 +262,7 @@ pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabe
                 yNew[[i,j]] = y[[i,j]];
             }
         }
-        p_0 = &ps.dot(&(&p_0 + params.alpha*y.dot(&y.t()))).dot(&ps.t()) + &lambdaMat;
+        p_0 = &ps.dot(&(&p_0 + params.alpha*y.dot(&y.t()))).dot(&psT) + &lambdaMat;
         //p_0 = matSum(&matMult(&matMult(&ps,&matSum(&p_0,&scalarMult(params.alpha,matMult(&y,&y.t())))),&ps.t()),&lambdaMat);
     }
 
@@ -286,6 +279,7 @@ pub fn dynamicLabelPropagation(labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabe
 fn main()
 {
     //load in training features and labels
+    let start = Instant::now();
     let file1 = File::open("./TrainData/uspstrainlabels.txt").unwrap();
     let file2 = File::open("./TrainData/uspstrainfeatures.txt").unwrap();
     let file3 = File::open("./TestData/uspstestfeatures.txt").unwrap();
@@ -295,22 +289,10 @@ fn main()
     let testLabels = USPSlabels(&file4).unwrap();
     let testFeatures = USPSfeatures(&file3).unwrap();
 
-    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,800,&Default::default());
-
-
-    //println!("{:?}", test.1);
-    //println!("{:?}", test.2);
-
-    let mut count:f64 = 0.;
-
-    for i in 0..test.2.len()
-    {
-        if test.1[i] == test.2[i]
-        {
-            count += 1.;
-        }
-
-    }
-    let accuracyScore:f64 = count/(test.1.len() as f64);
-    println!("{}", accuracyScore);
+    let test = dynamicLabelPropagation(&trainFeatures,&trainLabels,&testFeatures,&testLabels,500,&Default::default());
+    println!("{:?}", test.1);
+    println!("{:?}",test.2);
+    accuracyScore(&test.1,&test.2);
+    let duration = start.elapsed();
+    println!("Time elpased is: {:?}",duration);
 }
