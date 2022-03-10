@@ -6,4 +6,4 @@ Algorithm as described in the following paper:
 Wang, Bo and Tu, Zhuowen and Tsotsos, John."Dynamic Label Propagation for Semi-supervised Multi-class Multi-label Classification." Proceedings of the ICCV, 2013.
 
 
-**NEXT STEPS** test algorithm on wine dataset, enable blas, alter inputs of main function, allow  for user defined number of labels  
+**NEXT STEPS** test algorithm on wine dataset, enable blas, alter inputs of main function, allow  for user defined number of labels 
