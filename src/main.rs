@@ -193,11 +193,11 @@ pub fn prob_trans_mat(sampleMat:&Array2<f64>,params:&Params)-> (Array2<f64>,Arra
 }
 //lambda matrix used in final iteration steps of algorithm
 //although lambda is a parameter, the algorithm is not very sensitive to changes in it
-pub fn lamb_mat(num_samples:usize, params:&Params) -> Array2<f64>
+pub fn lamb_mat(dataSize:usize, params:&Params) -> Array2<f64>
 {
     let n = 100;// This is the number of unlabeled samples
-    let mut mat = Array2::<f64>::zeros((num_samples+n,num_samples+n));//vec![vec![0.;num_samples+n];num_samples+n];
-    for i in 0..num_samples
+    let mut mat = Array2::<f64>::zeros((dataSize+n,dataSize+n));//vec![vec![0.;num_samples+n];num_samples+n];
+    for i in 0..dataSize
     {
         mat[[i,i]] = params.lambda;
     }
@@ -210,8 +210,7 @@ pub fn label_mat(numClasses:usize, labeledFeatures:&Array2<f64>, labels:&Vec<f64
     let numLabels = labeledFeatures.shape()[0] + unlabeledFeatures.shape()[0];
 
     let mut y = Array2::<f64>::zeros((numLabels,numClasses));
-
-    for i in 0..numLabels
+    for i in 0..labeledFeatures.shape()[0]
     {
         y[[i,labels[i] as usize]] = 1.;
     }
