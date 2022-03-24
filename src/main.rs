@@ -1,6 +1,5 @@
 #![allow(non_snake_case)]
 //extern crate blas_src;
-use rand::Rng;
 use std::fs::File;
 use std::default::Default;
 use std::io::{BufRead,BufReader, Error};
@@ -140,7 +139,7 @@ pub fn affinityMatrix(x:&Array2<f64>, params: &Params)->Array2<f64>
 }
 
 // calculates the similarity matrices that will be used to obtain the probabilistic transition matrices
-pub fn calcSimMatrix(sampleMat:&Array2<f64>, params:&Params) -> (Array2<f64>,Array2<f64>)
+pub fn calc_sim_mat(sampleMat:&Array2<f64>, params:&Params) -> (Array2<f64>,Array2<f64>)
 {
     let num_samples = sampleMat.shape()[0];
 
@@ -163,9 +162,9 @@ pub fn calcSimMatrix(sampleMat:&Array2<f64>, params:&Params) -> (Array2<f64>,Arr
 }
 
 //creates probabilistic transition matrices for W and 𝓦
-pub fn probTransMatrix(sampleMat:&Array2<f64>,params:&Params)-> (Array2<f64>,Array2<f64>)
+pub fn prob_trans_mat(sampleMat:&Array2<f64>,params:&Params)-> (Array2<f64>,Array2<f64>)
 {
-    let (w,ww) = calcSimMatrix(&sampleMat,&params);
+    let (w,ww) = calc_sim_mat(&sampleMat,&params);
     let n = w.shape()[0];
     let m = w.len_of(Axis(0));
     let mut p_0 = Array2::<f64>::zeros((n,m));//vec![vec![0.;m];n];
@@ -194,7 +193,7 @@ pub fn probTransMatrix(sampleMat:&Array2<f64>,params:&Params)-> (Array2<f64>,Arr
 }
 //lambda matrix used in final iteration steps of algorithm
 //although lambda is a parameter, the algorithm is not very sensitive to changes in it
-pub fn lambMat(num_samples:usize, params:&Params) -> Array2<f64>
+pub fn lamb_mat(num_samples:usize, params:&Params) -> Array2<f64>
 {
     let n = 100;// This is the number of unlabeled samples
     let mut mat = Array2::<f64>::zeros((num_samples+n,num_samples+n));//vec![vec![0.;num_samples+n];num_samples+n];
@@ -205,45 +204,31 @@ pub fn lambMat(num_samples:usize, params:&Params) -> Array2<f64>
     return mat
 }
 
-pub fn labelMat(numClasses:usize, labeledFeatures:&FloatMat, labels:&Vec<f64>, unlabeledFeatures:&FloatMat, num_samples:usize) -> (Array2<f64>,Array2<f64>)
+pub fn label_mat(numClasses:usize, labeledFeatures:&Array2<f64>, labels:&Vec<f64>,
+    unlabeledFeatures:&Array2<f64>) -> Array2<f64>
 {
-    let m = labeledFeatures[0].len();
-    let n = 100; // This is the number of unlabeled samples
-    let mut featureSamples = Array2::<f64>::zeros((num_samples+n,m));
-    let mut y = Array2::<f64>::zeros((num_samples+n,numClasses));
-    let mut rng = rand::thread_rng();
-    for i in 0..num_samples + n
+    let numLabels = labeledFeatures.shape()[0] + unlabeledFeatures.shape()[0];
+
+    let mut y = Array2::<f64>::zeros((numLabels,numClasses));
+
+    for i in 0..numLabels
     {
-        if i < num_samples
-        {
-            let randnum = rng.gen_range(0..labeledFeatures.len());
-            y[[i,labels[randnum] as usize]] = 1.;
-            for j in 0..m
-            {
-                featureSamples[[i,j]] = labeledFeatures[randnum][j];
-            }
-        }
-        else
-        {
-            let randnum = rng.gen_range(0..unlabeledFeatures.len());
-            for j in 0..m
-            {
-                featureSamples[[i,j]] = unlabeledFeatures[randnum][j];
-            }
-        }
+        y[[i,labels[i] as usize]] = 1.;
     }
-    return (y,featureSamples)
+    return y
 }
 
 //dynamic label propagation needs training data and test data to work on
 //sigma is a tuning parameter
-pub fn dynamicLabelPropagation(numClasses:usize,labeledFeatures:&FloatMat,labels:&Vec<f64>,unlabeledFeatures:&FloatMat,num_samples:usize, params:&Params)->(Array2<f64>,Vec<usize>)
+pub fn dynamic_label_propagation(numClasses:usize, labeledFeatures:&Array2<f64>, labels:&Vec<f64>,
+    unlabeledFeatures:&Array2<f64>, params:&Params)->(Array2<f64>,Vec<usize>)
 {
-    let(y,featureSamples) = labelMat(numClasses,&labeledFeatures, &labels, &unlabeledFeatures, num_samples);
+    let dataSize = labeledFeatures.shape()[0];
+    let y = label_mat(numClasses,&labeledFeatures, &labels, &unlabeledFeatures);
 
-    let (mut p_0,ps) = probTransMatrix(&featureSamples,params);
+    let (mut p_0,ps) = prob_trans_mat(&labeledFeatures,params);
 
-    let lambdaMat = lambMat(num_samples, params);
+    let lambdaMat = lamb_mat(dataSize, params);
 
     let mut yNew = Array2::<f64>::zeros((p_0.shape()[0],y.shape()[1]));
 
@@ -253,7 +238,7 @@ pub fn dynamicLabelPropagation(numClasses:usize,labeledFeatures:&FloatMat,labels
     {
         yNew = p_0.dot(&y);
 
-        for i in 0..num_samples
+        for i in 0..dataSize
         {
             for j in 0..yNew.shape()[1]
             {
@@ -266,7 +251,7 @@ pub fn dynamicLabelPropagation(numClasses:usize,labeledFeatures:&FloatMat,labels
 
     let mut predictedLabels = vec![];
 
-    for i in num_samples..yNew.shape()[0]
+    for i in dataSize..yNew.shape()[0]
     {
         predictedLabels.push(yNew.row(i).argmax().unwrap());
     }
@@ -277,53 +262,41 @@ pub fn dynamicLabelPropagation(numClasses:usize,labeledFeatures:&FloatMat,labels
 fn main()
 {
 
-    /*
+
     let file1 = File::open("./TrainData/uspstrainlabels.txt").unwrap();
     let file2 = File::open("./TrainData/uspstrainfeatures.txt").unwrap();
     let file3 = File::open("./TestData/uspstestfeatures.txt").unwrap();
-    let file4 = File::open("./TestData/uspstestlabels.txt").unwrap();
-*/
-    let file5 = File::open("./WineData/redwinelabels.txt").unwrap();
-    let file6 = File::open("./WineData/redwinefeatures.txt").unwrap();
-
-    let labelData = USPSlabels(&file5).unwrap();
-    let featureData = USPSfeatures(&file6).unwrap();
 
 
-    let trainNum = 500;
-    let n = labelData.len();
+    let labelData = USPSlabels(&file1).unwrap();
+    let featureData = USPSfeatures(&file2).unwrap();
+    let testFeatures = USPSfeatures(&file3).unwrap();
+
+    let numSamples = 200;
 
 
-    let mut xTrain:FloatMat = vec![vec![0.;11];trainNum];
-    let mut yTrain = vec![0.; trainNum];
-    for i in 0..trainNum
+    let mut xTrain = Array2::<f64>::zeros((numSamples,256));
+    let mut yTrain = vec![0.;numSamples];
+    for i in 0..numSamples
     {
-        for j in 0..11
+        for j in 0..256
         {
-            xTrain[i][j] = featureData[i][j];
+            xTrain[[i,j]] = featureData[i][j];
         }
         yTrain[i] = labelData[i];
     }
 
-    let mut xTest:FloatMat = vec![vec![0.;11]; n-trainNum];
-    let mut yTest = vec![0.; n-trainNum];
-
-    for i in trainNum..n
+    let mut xTest = Array2::<f64>::zeros((100,256));
+    for i in 0..100
     {
-        for j in 0..11
+        for j in 0..256
         {
-            xTest[i-trainNum][j] = featureData[i][j];
+            xTest[[i,j]] = testFeatures[i][j];
         }
-        yTest[i-trainNum] = labelData[i];
     }
 
-/*
-    let testLabels = USPSlabels(&file4).unwrap();
-    let testFeatures = USPSfeatures(&file3).unwrap();
-*/
-
-    let classes:usize = 11;
-    let _test = dynamicLabelPropagation(classes,&xTrain,&yTrain,&xTest,500,&Default::default());
+    let classes:usize = 10;
+    let _test = dynamic_label_propagation(classes,&xTrain,&yTrain,&xTest,&Default::default());
 
 
 
