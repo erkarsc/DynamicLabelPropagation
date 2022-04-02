@@ -3,7 +3,6 @@
 use std::fs::File;
 use std::default::Default;
 use std::io::{BufRead,BufReader, Error};
-//use std::time::Instant;
 use smartcore::algorithm::neighbour::cover_tree::CoverTree;
 use smartcore::math::distance::Distance;
 use ndarray::Data;
@@ -31,7 +30,7 @@ impl Default for Params
 {
     fn default() -> Self
     {
-        return Params{k:30, sigma:0.06, alpha:0.05, lambda:0.1, max_iter:50};
+        return Params{k:30, sigma:0.06, alpha:0.05, lambda:0.1, max_iter:30};
     }
 }
 
@@ -72,13 +71,13 @@ where
     return x.iter().fold(0.,|sum,x|sum + x*x).sqrt();
 }
 
-pub fn accuracyScore(vec1:&Vec<usize>,vec2:&Vec<usize>)
+pub fn accuracyScore(vec1:&Vec<f64>,vec2:&Vec<usize>)
 {
     let mut count:f64 = 0.;
 
     for i in 0..vec2.len()
     {
-        if vec1[i] == vec2[i]
+        if vec1[i] == vec2[i] as f64
         {
             count += 1.;
         }
@@ -105,7 +104,8 @@ impl<'a> Distance<usize, f64> for DistanceStruct<'a>
 pub fn dist_graph(mat:&Array2<f64>) -> Array2<f64>
 {
     let n = mat.shape()[0];
-    let mut g = Array2::<f64>::zeros((n,n));//vec![vec![0.;n];n];
+    let mut g = Array2::<f64>::zeros((n,n));
+
     for i in 0..n
     {
         for j in 0..n
@@ -139,18 +139,47 @@ pub fn affinityMatrix(x:&Array2<f64>, params: &Params)->Array2<f64>
 }
 
 // calculates the similarity matrices that will be used to obtain the probabilistic transition matrices
-pub fn calc_sim_mat(sampleMat:&Array2<f64>, params:&Params) -> (Array2<f64>,Array2<f64>)
+pub fn calc_sim_mat(unlabeledFeatures:&Array2<f64>, labeledFeatures:&Array2<f64>, params:&Params) -> (Array2<f64>,Array2<f64>)
 {
-    let num_samples = sampleMat.shape()[0];
 
-    let mut ww = Array2::<f64>::zeros((num_samples,num_samples));//vec![vec![0.; num_samples]; num_samples];
-    let affMat = affinityMatrix(&sampleMat,params);
-    let g = dist_graph(&sampleMat);
+    let labelShape = labeledFeatures.shape();
+    let unlabelShape = unlabeledFeatures.shape();
+    let dataSize = unlabelShape[0]+labelShape[0];
 
-    let ind:Vec<usize> =  (0..num_samples).collect();
+
+    let mut featureMat = Array2::<f64>::zeros((dataSize,labelShape[1]));
+
+
+    for i in 0..dataSize
+    {
+        if i < labeledFeatures.shape()[0]
+        {
+            for j in 0..labeledFeatures.shape()[1]
+            {
+                featureMat[[i,j]] = labeledFeatures[[i,j]];
+            }
+        }
+        else
+        {
+            for j in 0..labeledFeatures.shape()[1]
+            {
+                featureMat[[i,j]] = unlabeledFeatures[[i-labeledFeatures.shape()[0],j]];
+            }
+        }
+    }
+
+    let mut ww = Array2::<f64>::zeros((dataSize, dataSize));//vec![vec![0.; num_samples]; num_samples];
+    let affMat = affinityMatrix(&featureMat,params);
+
+
+
+    let g = dist_graph(&featureMat);
+    let ind:Vec<usize> =  (0..dataSize).collect();
+
     let tree = CoverTree::new(ind, DistanceStruct{graph: &g}).unwrap();
 
-    for i in 0..num_samples
+
+    for i in 0..dataSize
     {
         let knn = tree.find(&i, params.k).unwrap();
         for tup in knn
@@ -162,9 +191,11 @@ pub fn calc_sim_mat(sampleMat:&Array2<f64>, params:&Params) -> (Array2<f64>,Arra
 }
 
 //creates probabilistic transition matrices for W and 𝓦
-pub fn prob_trans_mat(sampleMat:&Array2<f64>,params:&Params)-> (Array2<f64>,Array2<f64>)
+pub fn prob_trans_mat(labeledFeatures:&Array2<f64>, unlabeledFeatures:&Array2<f64>,params:&Params)-> (Array2<f64>,Array2<f64>)
 {
-    let (w,ww) = calc_sim_mat(&sampleMat,&params);
+
+    let (w,ww) = calc_sim_mat(&labeledFeatures,&unlabeledFeatures,&params);
+
     let n = w.shape()[0];
     let m = w.len_of(Axis(0));
     let mut p_0 = Array2::<f64>::zeros((n,m));//vec![vec![0.;m];n];
@@ -195,8 +226,9 @@ pub fn prob_trans_mat(sampleMat:&Array2<f64>,params:&Params)-> (Array2<f64>,Arra
 //although lambda is a parameter, the algorithm is not very sensitive to changes in it
 pub fn lamb_mat(dataSize:usize, params:&Params) -> Array2<f64>
 {
-    let n = 100;// This is the number of unlabeled samples
-    let mut mat = Array2::<f64>::zeros((dataSize+n,dataSize+n));//vec![vec![0.;num_samples+n];num_samples+n];
+
+    // This is the number of unlabeled samples
+    let mut mat = Array2::<f64>::zeros((dataSize,dataSize));//vec![vec![0.;num_samples+n];num_samples+n];
     for i in 0..dataSize
     {
         mat[[i,i]] = params.lambda;
@@ -217,19 +249,21 @@ pub fn label_mat(numClasses:usize, labeledFeatures:&Array2<f64>, labels:&Vec<f64
     return y
 }
 
-//dynamic label propagation needs training data and test data to work on
-//sigma is a tuning parameter
+
 pub fn dynamic_label_propagation(numClasses:usize, labeledFeatures:&Array2<f64>, labels:&Vec<f64>,
     unlabeledFeatures:&Array2<f64>, params:&Params)->(Array2<f64>,Vec<usize>)
 {
-    let dataSize = labeledFeatures.shape()[0];
-    let y = label_mat(numClasses,&labeledFeatures, &labels, &unlabeledFeatures);
+    let labeledSize = labeledFeatures.shape()[0];
+    let unlabeledSize = unlabeledFeatures.shape()[0];
+    let dataSize = labeledSize + unlabeledSize;
 
-    let (mut p_0,ps) = prob_trans_mat(&labeledFeatures,params);
+    let y = label_mat(numClasses, &labeledFeatures, &labels, &unlabeledFeatures);
+
+    let (mut p_0, ps) = prob_trans_mat(&labeledFeatures,&unlabeledFeatures, params);
 
     let lambdaMat = lamb_mat(dataSize, params);
 
-    let mut yNew = Array2::<f64>::zeros((p_0.shape()[0],y.shape()[1]));
+    let mut yNew = Array2::<f64>::zeros((y.shape()[0],y.shape()[1]));
 
     let psT = ps.t();
 
@@ -237,7 +271,7 @@ pub fn dynamic_label_propagation(numClasses:usize, labeledFeatures:&Array2<f64>,
     {
         yNew = p_0.dot(&y);
 
-        for i in 0..dataSize
+        for i in 0..labeledSize
         {
             for j in 0..yNew.shape()[1]
             {
@@ -250,7 +284,7 @@ pub fn dynamic_label_propagation(numClasses:usize, labeledFeatures:&Array2<f64>,
 
     let mut predictedLabels = vec![];
 
-    for i in dataSize..yNew.shape()[0]
+    for i in labeledSize..yNew.shape()[0]
     {
         predictedLabels.push(yNew.row(i).argmax().unwrap());
     }
@@ -265,7 +299,8 @@ fn main()
     let file1 = File::open("./TrainData/uspstrainlabels.txt").unwrap();
     let file2 = File::open("./TrainData/uspstrainfeatures.txt").unwrap();
     let file3 = File::open("./TestData/uspstestfeatures.txt").unwrap();
-
+    let file4 = File::open("./TestData/uspstestlabels.txt").unwrap();
+    let testLabel = USPSlabels(&file4).unwrap();
 
     let labelData = USPSlabels(&file1).unwrap();
     let featureData = USPSfeatures(&file2).unwrap();
@@ -286,17 +321,23 @@ fn main()
     }
 
     let mut xTest = Array2::<f64>::zeros((100,256));
+    let mut yTest = vec![0.;100];
     for i in 0..100
     {
+        yTest[i] = testLabel[i];
         for j in 0..256
         {
             xTest[[i,j]] = testFeatures[i][j];
         }
     }
 
-    let classes:usize = 10;
-    let _test = dynamic_label_propagation(classes,&xTrain,&yTrain,&xTest,&Default::default());
 
+    let classes:usize = 10;
+
+    let test = dynamic_label_propagation(classes,&xTrain,&yTrain,&xTest,&Default::default());
+    println!("{:?}",yTest);
+    println!("{:?}",test.1);
+    accuracyScore(&yTest,&test.1)
 
 
 }
