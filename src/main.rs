@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 //extern crate blas_src;
+
+use rand::Rng;
 use std::fs::File;
 use std::default::Default;
 use std::io::{BufRead,BufReader, Error};
@@ -11,6 +13,7 @@ use ndarray_stats::QuantileExt;
 
 type FloatMat = Vec<Vec<f64>>;
 
+//For me: remove redundant calculations of data size. Continue commenting
 
 #[derive(Debug)]
 
@@ -26,11 +29,12 @@ pub struct Params
     max_iter: usize,
 }
 
+
 impl Default for Params
 {
     fn default() -> Self
     {
-        return Params{k:30, sigma:0.06, alpha:0.05, lambda:0.1, max_iter:30};
+        return Params{k:12, sigma:0.6, alpha:0.05, lambda:0.1, max_iter:80};
     }
 }
 
@@ -122,7 +126,7 @@ pub fn dist_graph(mat:&Array2<f64>) -> Array2<f64>
 pub fn affinityMatrix(x:&Array2<f64>, params: &Params)->Array2<f64>
 {
     let n = x.shape()[0];
-    let mut w = Array2::<f64>::zeros((n,n));//vec![vec![0.;n]; n]; // allocate space for affinity matrix
+    let mut w = Array2::<f64>::zeros((n,n));
     let mut val:f64;
     for i in 0..n
     {
@@ -139,22 +143,22 @@ pub fn affinityMatrix(x:&Array2<f64>, params: &Params)->Array2<f64>
 }
 
 // calculates the similarity matrices that will be used to obtain the probabilistic transition matrices
-pub fn calc_sim_mat(unlabeledFeatures:&Array2<f64>, labeledFeatures:&Array2<f64>, params:&Params) -> (Array2<f64>,Array2<f64>)
+pub fn calc_sim_mat(labeledFeatures:&Array2<f64>, unlabeledFeatures:&Array2<f64>, params:&Params) -> (Array2<f64>, Array2<f64>)
 {
 
     let labelShape = labeledFeatures.shape();
     let unlabelShape = unlabeledFeatures.shape();
     let dataSize = unlabelShape[0]+labelShape[0];
-
+    println!("{}",labelShape[0]);
 
     let mut featureMat = Array2::<f64>::zeros((dataSize,labelShape[1]));
 
 
     for i in 0..dataSize
     {
-        if i < labeledFeatures.shape()[0]
+        if i < labelShape[0]
         {
-            for j in 0..labeledFeatures.shape()[1]
+            for j in 0..labelShape[1]
             {
                 featureMat[[i,j]] = labeledFeatures[[i,j]];
             }
@@ -163,13 +167,13 @@ pub fn calc_sim_mat(unlabeledFeatures:&Array2<f64>, labeledFeatures:&Array2<f64>
         {
             for j in 0..labeledFeatures.shape()[1]
             {
-                featureMat[[i,j]] = unlabeledFeatures[[i-labeledFeatures.shape()[0],j]];
+                featureMat[[i,j]] = unlabeledFeatures[[i-labelShape[0],j]];
             }
         }
     }
-
-    let mut ww = Array2::<f64>::zeros((dataSize, dataSize));//vec![vec![0.; num_samples]; num_samples];
-    let affMat = affinityMatrix(&featureMat,params);
+   
+    let mut ww = Array2::<f64>::zeros((dataSize, dataSize));
+    let affMat = affinityMatrix(&featureMat, params);
 
 
 
@@ -198,8 +202,9 @@ pub fn prob_trans_mat(labeledFeatures:&Array2<f64>, unlabeledFeatures:&Array2<f6
 
     let n = w.shape()[0];
     let m = w.len_of(Axis(0));
-    let mut p_0 = Array2::<f64>::zeros((n,m));//vec![vec![0.;m];n];
-    let mut ps = Array2::<f64>::zeros((n,m));//vec![vec![0.;m];n];
+  
+    let mut p_0 = Array2::<f64>::zeros((n,m));
+    let mut ps = Array2::<f64>::zeros((n,m));
 
     for i in 0..n
     {
@@ -228,7 +233,7 @@ pub fn lamb_mat(dataSize:usize, params:&Params) -> Array2<f64>
 {
 
     // This is the number of unlabeled samples
-    let mut mat = Array2::<f64>::zeros((dataSize,dataSize));//vec![vec![0.;num_samples+n];num_samples+n];
+    let mut mat = Array2::<f64>::zeros((dataSize,dataSize));
     for i in 0..dataSize
     {
         mat[[i,i]] = params.lambda;
@@ -253,17 +258,23 @@ pub fn label_mat(numClasses:usize, labeledFeatures:&Array2<f64>, labels:&Vec<f64
 pub fn dynamic_label_propagation(numClasses:usize, labeledFeatures:&Array2<f64>, labels:&Vec<f64>,
     unlabeledFeatures:&Array2<f64>, params:&Params)->(Array2<f64>,Vec<usize>)
 {
+    // Get sizes of labeled and unlabeled data
     let labeledSize = labeledFeatures.shape()[0];
     let unlabeledSize = unlabeledFeatures.shape()[0];
     let dataSize = labeledSize + unlabeledSize;
+    
 
+    // Label matrix has shape (labeledSize+unlabeledSize, numClasses)
+    // Labels are in [0,numClasses). Give array a value of 1 in corresponding spot
+    // e.g. (1,0,0), (0,1,0)
     let y = label_mat(numClasses, &labeledFeatures, &labels, &unlabeledFeatures);
-
+    println!("{}",y);
+    
+    
     let (mut p_0, ps) = prob_trans_mat(&labeledFeatures,&unlabeledFeatures, params);
-
+    
     let lambdaMat = lamb_mat(dataSize, params);
-
-    let mut yNew = Array2::<f64>::zeros((y.shape()[0],y.shape()[1]));
+    let mut yNew = Array2::<f64>::zeros((p_0.shape()[0],y.shape()[1]));
 
     let psT = ps.t();
 
@@ -289,7 +300,7 @@ pub fn dynamic_label_propagation(numClasses:usize, labeledFeatures:&Array2<f64>,
         predictedLabels.push(yNew.row(i).argmax().unwrap());
     }
 
-    return (yNew,predictedLabels)
+    return (yNew, predictedLabels)
 }
 
 fn main()
@@ -300,24 +311,30 @@ fn main()
     let file2 = File::open("./TrainData/uspstrainfeatures.txt").unwrap();
     let file3 = File::open("./TestData/uspstestfeatures.txt").unwrap();
     let file4 = File::open("./TestData/uspstestlabels.txt").unwrap();
-    let testLabel = USPSlabels(&file4).unwrap();
-
+    
+   
     let labelData = USPSlabels(&file1).unwrap();
     let featureData = USPSfeatures(&file2).unwrap();
     let testFeatures = USPSfeatures(&file3).unwrap();
+    let testLabel = USPSlabels(&file4).unwrap();
 
-    let numSamples = 200;
+    let numSamples = 400;
 
 
     let mut xTrain = Array2::<f64>::zeros((numSamples,256));
     let mut yTrain = vec![0.;numSamples];
+    
+    
+    // Let's randomly select values from the training set
+    let mut rng = rand::thread_rng();
     for i in 0..numSamples
     {
+        let randnum = rng.gen_range(0..featureData.len());
         for j in 0..256
         {
-            xTrain[[i,j]] = featureData[i][j];
+            xTrain[[i,j]] = featureData[randnum][j];
         }
-        yTrain[i] = labelData[i];
+        yTrain[i] = labelData[randnum];
     }
 
     let mut xTest = Array2::<f64>::zeros((100,256));
