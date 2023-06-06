@@ -149,7 +149,6 @@ pub fn calc_sim_mat(labeledFeatures:&Array2<f64>, unlabeledFeatures:&Array2<f64>
     let labelShape = labeledFeatures.shape();
     let unlabelShape = unlabeledFeatures.shape();
     let dataSize = unlabelShape[0]+labelShape[0];
-    println!("{}",labelShape[0]);
 
     let mut featureMat = Array2::<f64>::zeros((dataSize,labelShape[1]));
 
@@ -268,9 +267,7 @@ pub fn dynamic_label_propagation(numClasses:usize, labeledFeatures:&Array2<f64>,
     // Labels are in [0,numClasses). Give array a value of 1 in corresponding spot
     // e.g. (1,0,0), (0,1,0)
     let y = label_mat(numClasses, &labeledFeatures, &labels, &unlabeledFeatures);
-    println!("{}",y);
-    
-    
+
     let (mut p_0, ps) = prob_trans_mat(&labeledFeatures,&unlabeledFeatures, params);
     
     let lambdaMat = lamb_mat(dataSize, params);
@@ -318,7 +315,7 @@ fn main()
     let testFeatures = USPSfeatures(&file3).unwrap();
     let testLabel = USPSlabels(&file4).unwrap();
 
-    let numSamples = 400;
+    let numSamples = 300;
 
 
     let mut xTrain = Array2::<f64>::zeros((numSamples,256));
