@@ -9,6 +9,6 @@ The function dynamic_label_propagation() takes number of classes, training label
 
 `dynamic_label_propagation(classes, &xTrain, &yTrain, &xTest, &Default::default())`
 
-After compiling the source code, simply execute `cargo run` from the top level directory DynamicLabelPropagation in order to start the algorithm. The output will show the test array as well as the predictions:
+After compiling the source code, simply execute `cargo run` from the top level directory DynamicLabelPropagation in order to start the algorithm. The output will show the test array as well as the predictions and accuracy:
 
 ![image](https://github.com/erkasc01/DynamicLabelPropagation/assets/50526911/48ce769d-7b21-4fcb-a1da-5f5847191366)
